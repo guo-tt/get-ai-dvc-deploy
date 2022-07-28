@@ -1,0 +1,63 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: get-forecast-train-init
+  namespace: data-insight
+spec:
+  backoffLimit: 4
+  parallelism: 1
+  template:
+    metadata:
+      labels:
+        app: get-forecast-train-init
+    spec:
+      restartPolicy: Never
+      containers:
+      - args:
+        - python
+        - ./train.py
+        env:
+        - name: KUBE_ENV
+          value: "{kube-env}"
+        image: spdadocker.azurecr.io/spdigital-data/getai
+        imagePullPolicy: Always
+        name: get-forecaster-train
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 4Gi
+          requests:
+            cpu: 1000m
+            memory: 4Gi
+        volumeMounts:
+        - mountPath: /apps/secret
+          name: secret-volume
+          readOnly: true
+        - mountPath: /apps/config
+          name: config
+        - mountPath: /apps/metrics
+          name: metrics
+        - mountPath: /mnt/mlflow-data
+          name: mlflow-data
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsUser: 1000
+      serviceAccount: deployment
+      serviceAccountName: deployment
+      volumes:
+      - name: secret-volume
+        secret:
+          defaultMode: 420
+          secretName: getai-secret
+      - configMap:
+          defaultMode: 420
+          name: get-forecast-settings
+        name: config
+      - configMap:
+          defaultMode: 420
+          name: get-forecast-metrics
+        name: metrics
+      - name: mlflow-data
+        persistentVolumeClaim:
+          claimName: get-ai-mlflow-data

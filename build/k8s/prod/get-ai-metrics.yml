@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: get-forecast-metrics
+data:
+  metrics.yaml: |
+    - namespace: eclipse
+      measuring_point: supply
+      metric: elect_active_energy_watthours_interval
+      interval: 1800
+      experiment_name: get-eclipse-supply-elec
+      url: https://octopus-api.in.spdigital.sg/api/v1/query_range
+      artifact_location: file:///mnt/mlflow-data/artifacts
+      train_history_in_days: 180
+      predict_history_in_days: 14
+      tags:
+        interval: "1800"
+        sensor_identifier: supply
+        source_code: spug-eclipse
+        stage: forecast

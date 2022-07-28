@@ -1,0 +1,50 @@
+from python:3.9
+
+RUN pip install \
+    hyperopt==0.2.7 \
+    keras==2.8.0 \
+    lightgbm==3.3.2 \
+    matplotlib==3.5.1 \
+    mlflow==1.25.1 \
+    numpy==1.21.5 \
+    pandas==1.3.5 \
+    pyarrow==7.0.0 \
+    python-dateutil==2.8.2 \
+    PyYAML==6.0 \
+    scikit_learn==1.1.1 \
+    scipy==1.7.3 \
+    seaborn==0.11.2 \
+    statsmodels==0.12.2 \
+    tensorflow==2.8.0 \
+    tqdm==4.62.3 \
+    xgboost==1.5.2 \
+    cython==0.29.28
+
+RUN pip install \
+    convertdate==2.4.0 \
+    holidays==0.13 \
+    lunarcalendar==0.0.9 \
+    pystan==2.19.1.1 \
+    protobuf==3.20.1
+
+RUN pip install prophet==1.0.1
+
+RUN pip install protobuf3==0.2.1
+
+RUN apt-get update && apt-get install -y librdkafka1 librdkafka-dev
+RUN pip install confluent-kafka==1.0.0
+
+RUN pip install azure-storage-blob==12.12.0
+RUN pip install psycopg2-binary
+
+RUN mkdir /apps
+
+COPY get-forecaster /tmp/get-forecaster
+RUN pip install /tmp/get-forecaster
+
+RUN apt-get update && apt-get install -y vim
+
+RUN useradd -u 1000 -m -p "" -s /bin/bash spd
+USER spd
+WORKDIR /apps
+COPY /src /apps

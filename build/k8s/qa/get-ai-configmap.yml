@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: get-forecast-settings
+data:
+  settings.yaml: |
+    mlflow_tracking_uri: http://mlflow-server:5000
+    kafka:
+        bootstrap.servers: kafka-chrono-qa.service.spda:9093
+        client.id: datain
+        group.id: get-forecaster
+        enable.auto.commit: "false"
+        auto.offset.reset: earliest
+        security.protocol: ssl
+        ssl.key.location: ./secret/key.pem
+        ssl.certificate.location: ./secret/cert.pem
+        ssl.ca.location: ./secret/ca.pem
+        partition.assignment.strategy: roundrobin
+    kafka_max_partitions: 5
+    kafka_sink_topic: octopus.standardized
+    write_to_kafka: True
+    test_mode: True
+    blob_container_url: https://spdadiqa.blob.core.windows.net
+    blob_container_name: data-insight-qa
+    blob_prefix: get-forecaster
