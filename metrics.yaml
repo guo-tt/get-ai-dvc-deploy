@@ -7,7 +7,7 @@
   timeout: 2
   artifact_location: file:///mnt/mlflow_data/mlflow_artifacts
   train_history_in_days: 30
-  predict_history_in_days: 14
+  predict_history_in_days: 15
   tags:
     interval: "1800"
     sensor_identifier: SP-MSB2-IN-TX3
