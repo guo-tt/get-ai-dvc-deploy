@@ -1,0 +1,203 @@
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: getai
+  labels:
+    app: getai
+spec:
+  selector:
+    matchLabels:
+      app: getai
+  strategy:
+    type: Recreate
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: getai
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: getai
+        image: spdadocker.azurecr.io/spdigital-data/getai
+        args: ["python", "-m", "http.server", "9000"]
+        imagePullPolicy: Always
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "100m"
+        env:
+        - name: LOG_LEVEL
+          value: DEBUG
+        - name: KUBE_ENV
+          value: "{kube-env}"
+        - name: JENKINS_BUILD
+          value: "{jenkins-build}"
+        - name: GIT_COMMIT
+          value: "{git-commit}"
+        ports:
+        - containerPort: 9000
+        readinessProbe:
+          # an http probe
+          httpGet:
+            path: /
+            port: 9000
+          initialDelaySeconds: 45
+          timeoutSeconds: 20
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 9000
+          initialDelaySeconds: 60
+          timeoutSeconds: 30
+        volumeMounts:
+        - name: secret-volume
+          mountPath: /apps/secret
+          readOnly: true
+        - name: config
+          mountPath: /apps/config
+        - name: metrics
+          mountPath: /apps/metrics
+        - name: mlflow-data
+          mountPath: /mnt/mlflow-data
+      volumes:
+      - name: secret-volume
+        secret:
+          secretName: getai-secret
+      - name: config
+        configMap:
+          name: get-forecast-settings
+      - name: metrics
+        configMap:
+          name: get-forecast-metrics
+      - name: mlflow-data
+        persistentVolumeClaim:
+          claimName: get-ai-mlflow-data
+      restartPolicy: Always
+      serviceAccountName: deployment
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: getai
+  labels:
+    app: getai
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8888
+    protocol: TCP
+  selector:
+    app: getai
+
+
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: mlflow-server
+  labels:
+    app: mlflow-server
+spec:
+  selector:
+    matchLabels:
+      app: mlflow-server
+  strategy:
+    type: Recreate
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: mlflow-server
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: mlflow-server
+        image: spdadocker.azurecr.io/spdigital-data/getai
+        args: 
+        - bash
+        - /apps/scripts/run_mlflow.sh
+        imagePullPolicy: Always
+        resources:
+          requests:
+            memory: "1024Mi"
+            cpu: "100m"
+          limits:
+            memory: "1024Mi"
+            cpu: "500m"
+        env:
+        - name: MLFLOW_TRACKING_URI
+          valueFrom:
+            secretKeyRef:
+              name: mlflow
+              key: BACKEND_STORE_URI
+              optional: false
+        - name: LOG_LEVEL
+          value: DEBUG
+        - name: KUBE_ENV
+          value: "{kube-env}"
+        - name: JENKINS_BUILD
+          value: "{jenkins-build}"
+        - name: GIT_COMMIT
+          value: "{git-commit}"
+        ports:
+        - containerPort: 5000
+        readinessProbe:
+          # an http probe
+          httpGet:
+            path: /
+            port: 5000
+          initialDelaySeconds: 45
+          timeoutSeconds: 20
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 5000
+          initialDelaySeconds: 60
+          timeoutSeconds: 30
+        volumeMounts:
+        - name: secret-volume
+          mountPath: /apps/secret
+          readOnly: true
+        - name: mlflow-data
+          mountPath: /mnt/mlflow-data
+        - name: mlflow-db
+          mountPath: /mnt/mlflow-db
+      volumes:
+      - name: secret-volume
+        secret:
+          secretName: getai-secret
+      - name: mlflow-data
+        persistentVolumeClaim:
+          claimName: get-ai-mlflow-data
+      - name: mlflow-db
+        persistentVolumeClaim:
+          claimName: get-ai-mlflow-db
+      restartPolicy: Always
+      serviceAccountName: deployment
+
+---
+
+kind: Service
+apiVersion: v1
+metadata:
+  name: mlflow-server
+  labels:
+    app: mlflow-server
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5000
+    protocol: TCP
+  selector:
+    app: mlflow-server

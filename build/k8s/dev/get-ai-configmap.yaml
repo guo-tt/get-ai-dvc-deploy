@@ -1,0 +1,74 @@
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: get-ai-forecast
+  labels:
+    app: get-ai-forecast
+spec:
+  selector:
+    matchLabels:
+      app: get-ai-forecast
+  strategy:
+    type: Recreate
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: get-ai-forecast
+    spec:
+      securityContext:
+        runAsUser: 1000
+      containers:
+      - name: get-ai-forecast
+        image: spdadocker.azurecr.io/spdigital-data/get-ai-forecast
+        command: ["jupyter"]
+        args: ["notebook", "--ip='*'", "--NotebookApp.token=''", "--NotebookApp.password=''"]
+        imagePullPolicy: Always
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        env:
+        - name: LOG_LEVEL
+          value: DEBUG
+        - name: KUBE_ENV
+          value: "{kube-env}"
+        - name: JENKINS_BUILD
+          value: "{jenkins-build}"
+        - name: GIT_COMMIT
+          value: "{git-commit}"
+        ports:
+        - containerPort: 8888
+        readinessProbe:
+          # an http probe
+          httpGet:
+            path: /
+            port: 8888
+          initialDelaySeconds: 45
+          timeoutSeconds: 20
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8888
+          initialDelaySeconds: 60
+          timeoutSeconds: 30
+      restartPolicy: Always
+      serviceAccountName: deployment
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: get-ai-forecast
+  labels:
+    app: get-ai-forecast
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8888
+    protocol: TCP
+  selector:
+    app: get-ai-forecast

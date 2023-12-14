@@ -1,0 +1,144 @@
+pipeline {
+    agent {
+        node {
+            label 'ci-base-v2'
+        }
+    }
+
+    parameters {
+      choice(name: 'MODE', choices: ['Deploy', 'Debug'], description: 'Job Mode')
+      string(name: 'DEBUG_CMD', defaultValue: "kubectl --namespace=data-insight get pods")
+    }
+
+    options {
+        skipStagesAfterUnstable()
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timestamps()
+      }
+
+    environment {
+        // Slack Configuration
+        SLACK_CHANNEL                      = "#data-team-git"
+        SLACK_TEAM_DOMAIN                  = "sp-digital"
+        SLACK_TOKEN                        = credentials("spdigital-slack-token")
+
+        // BRANCH_SUFFIX removes the <category> from the BRANCH_NAME
+        // Format:
+        // BRANCH_NAME = <category>/<BRANCH_SUFFIX>
+        BRANCH_SUFFIX         = BRANCH_NAME.replaceAll(/^.*?\//, "").replaceAll(/\W+/, '-').toLowerCase()
+
+        // Set Docker container suffix for uniqueness
+        CONTAINER_SUFFIX      = "${BRANCH_SUFFIX}${BUILD_NUMBER}"
+        OVERWRITE_ROLEHASH    = "1"
+    }
+
+    stages {
+        stage('Start') {
+            when {
+                anyOf { branch 'master'; branch 'production'}
+            }
+            steps {
+                notifySlack('CI/CD', 'STARTED')
+            }
+        }
+
+      stage('Prepare Deployment') {
+          when {
+              anyOf { branch 'master'; branch 'production'}
+          }
+          steps {
+              echo "Prepare ENV for deployment: ${BRANCH_SUFFIX}"
+              script {
+                  switch(BRANCH_SUFFIX) {
+                      case("production"):
+                          env.DOCKER_REGISTRY           = "spdadocker.azurecr.io"
+                          env.KUBE_ENV                  = "prod"
+                          env.DOCKER_TAG                = "${DOCKER_REGISTRY}/spdigital-data/getai:${KUBE_ENV}-${GIT_COMMIT}"
+                          break
+                      case("master"):
+                          env.DOCKER_REGISTRY           = "spdadocker.azurecr.io"
+                          env.KUBE_ENV                  = "qa"
+                          env.DOCKER_TAG                = "${DOCKER_REGISTRY}/spdigital-data/getai:${KUBE_ENV}-${GIT_COMMIT}"
+                          break
+                  }
+              }
+          }
+      }
+
+      stage("Build Docker Image") {
+          when {
+              allOf {
+                anyOf { branch 'master'; branch 'production' }
+                expression{params.MODE == "Deploy"}
+              }
+          }
+          steps {
+              timeout(time: 25, unit: 'MINUTES') {
+                 echo "Execute build"
+                 sh "make -f build/ci/Makefile build"
+               }
+          }
+          post {
+            success { notifySlack("Docker Build Image", "SUCCESS") }
+            failure { notifySlack("Docker Build Image", "FAILURE") }
+          }
+      }
+
+      stage("Push to Registry") {
+        when {
+          allOf {
+            anyOf { branch 'master'; branch 'production' }
+            expression{params.MODE == "Deploy"}
+          }
+        }
+        environment {
+          DOCKER_LOGIN    = credentials("spdadocker-azurecr-io")
+        }
+        steps {
+          timeout(time: 15, unit: 'MINUTES') {
+            echo "Push release image to registry"
+            sh "make -f build/ci/Makefile push"
+          }
+        }
+        post {
+          success { notifySlack("Push to registry", "SUCCESS") }
+          failure { notifySlack("Push to registry", "FAILURE") }
+        }
+      }
+
+      stage("Deploy to DevOps Clusters") {
+            when {
+              anyOf { branch 'master'; branch 'production'}
+            }
+            steps {
+              script {
+                switch(BRANCH_SUFFIX) {
+                  case("production"):
+                      build job: 'Data/_get-ai/get-ai-prod-deploy', parameters: [
+                          string(name: 'VAULT_K8CONFIG_PATH', value: 'secret/kubeconfig/data-insight.spdaprodaks3'),
+                          string(name: 'DOCKER_TAG', value: "${DOCKER_TAG}"),
+                          string(name: 'BUILD_ID', value: "${BUILD_ID}"),
+                          string(name: 'GIT_COMMIT', value: "${GIT_COMMIT}"),
+                          string(name: 'MODE', value: "${MODE}"),
+                          string(name: 'DEBUG_CMD', value: "${DEBUG_CMD}")
+                          ],
+                          propagate: true, wait: true
+                      break
+                  case("master"):
+                      // This will be deployed to cluster 1
+                      build job: 'Data/_get-ai/get-ai-qa-deploy', parameters: [
+                          string(name: 'VAULT_K8CONFIG_PATH', value: 'secret/kubeconfig/data-insight.spdaqaaks3'),
+                          string(name: 'DOCKER_TAG', value: "${DOCKER_TAG}"),
+                          string(name: 'BUILD_ID', value: "${BUILD_ID}"),
+                          string(name: 'GIT_COMMIT', value: "${GIT_COMMIT}"),
+                          string(name: 'MODE', value: "${MODE}"),
+                          string(name: 'DEBUG_CMD', value: "${DEBUG_CMD}")
+                          ],
+                          propagate: true, wait: true
+                }
+              }
+            }
+      }
+    }
+}

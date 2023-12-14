@@ -1,0 +1,17 @@
+schema: '2.0'
+stages:
+  train:
+    cmd: python src/train.py
+    deps:
+    - path: metrics.yaml
+      md5: 6a4a355f0771256aa4b5b57007cf2bc4
+      size: 468
+    - path: src/data/sample.csv
+      md5: 31d25bf527e41b3c2d0f31442c5e7af7
+      size: 501780
+    - path: src/train.py
+      md5: eb40dde1ca77ea544bd051f269b028f3
+      size: 5562
+    params:
+      settings.yaml:
+        test_mode: true

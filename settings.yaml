@@ -1,0 +1,15 @@
+mlflow_tracking_uri: sqlite:////mnt/mlflow_data/mlflow.db
+kafka:
+    bootstrap.servers: kafka:9092
+    client.id: datain
+    group.id: get-forecaster
+    enable.auto.commit: "false"
+    auto.offset.reset: earliest
+    partition.assignment.strategy: roundrobin
+kafka_max_partitions: 1
+kafka_sink_topic: get_forecast
+write_to_kafka: True
+test_mode: True 
+blob_container_url: https://artemisk8svmss.blob.core.windows.net
+blob_container_name: aie-gtt-test
+blob_prefix: get-forecaster

@@ -1,0 +1,21 @@
+channels:
+- conda-forge
+dependencies:
+- python=3.9.13
+- pip<=22.0.4
+- pip:
+  - mlflow
+  - cffi==1.15.1
+  - cloudpickle==2.1.0
+  - dataclasses==0.6
+  - get-forecaster==0.1.0
+  - hyperopt==0.2.7
+  - ipython==8.4.0
+  - lightgbm==3.3.2
+  - psutil==5.9.1
+  - scikit-learn==1.1.1
+  - seaborn==0.11.2
+  - statsmodels==0.12.2
+  - tensorflow-aarch64==2.9.1
+  - xgboost==1.5.2
+name: mlflow-env

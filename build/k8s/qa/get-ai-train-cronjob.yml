@@ -1,0 +1,61 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: get-forecaster-train-cronjob
+spec:
+  schedule: "5 16 * * 1"
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: get-forecaster-train-job
+        spec:
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+          restartPolicy: Never
+          containers:
+          - name: get-forecaster-train
+            image: spdadocker.azurecr.io/spdigital-data/getai
+            imagePullPolicy: Always
+            args: ["python","./train.py"]
+            volumeMounts:
+            - name: secret-volume
+              mountPath: /apps/secret
+              readOnly: true
+            - name: config
+              mountPath: /apps/config
+            - name: metrics
+              mountPath: /apps/metrics
+            - name: mlflow-data
+              mountPath: /mnt/mlflow-data
+            env:
+            - name: KUBE_ENV
+              value: "{kube-env}"
+            - name: JENKINS_BUILD
+              value: "{jenkins-build}"
+            - name: GIT_COMMIT
+              value: "{git-commit}"
+            resources:
+              requests:
+                memory: "1Gi"
+                cpu: "500m"
+              limits:
+                memory: "1Gi"
+                cpu: "1000m"
+          volumes:
+          - name: secret-volume
+            secret:
+              secretName: getai-secret
+          - name: config
+            configMap:
+              name: get-forecast-settings
+          - name: metrics
+            configMap:
+              name: get-forecast-metrics
+          - name: mlflow-data
+            persistentVolumeClaim:
+              claimName: get-ai-mlflow-data
+          serviceAccountName: deployment
